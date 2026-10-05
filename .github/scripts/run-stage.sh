@@ -34,6 +34,10 @@ command -v kiro-cli >/dev/null 2>&1 || die "kiro-cli not found on PATH"
 run_kiro() {
   local prompt="$1" agent="$2"
   log "invoking kiro-cli (agent=${agent}) ..."
+  # Run from the repo root: kiro-cli discovers workspace agents from
+  # ./.kiro/agents/ relative to the current directory, so the CWD must be the
+  # repo root for --agent "$agent" to resolve.
+  cd "$REPO_ROOT"
   # --no-interactive: no TTY prompts; --trust-all-tools: allow file edits unattended.
   # The agent definition constrains which tools/paths are actually permitted.
   kiro-cli chat "$prompt" \

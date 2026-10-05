@@ -7,7 +7,7 @@ name: sdlc_run
 #   - (future) label sdlc:design    -> run design
 #   - (future) label sdlc:implement -> run implement
 #
-# The spec agent is restricted to writing under .docs/ (see .github/agents/sdlc-spec.json),
+# The spec agent is restricted to writing under .docs/ (see .kiro/agents/sdlc-spec.json),
 # so this job cannot modify source code.
 
 on:
@@ -92,7 +92,12 @@ jobs:
             echo "kiro-cli already present at: $(command -v kiro-cli)"
           elif [[ -n "${KIRO_CLI_INSTALL_CMD}" ]]; then
             echo "Installing kiro-cli via repo variable KIRO_CLI_INSTALL_CMD"
-            bash -c "${KIRO_CLI_INSTALL_CMD}"
+            if ! bash -c "${KIRO_CLI_INSTALL_CMD}"; then
+              echo "::error::kiro-cli install command failed. Check the KIRO_CLI_INSTALL_CMD \
+              repo variable. Expected (fully non-interactive): \
+              'curl -fsSL https://cli.kiro.dev/install | bash -s -- --force'"
+              exit 1
+            fi
           else
             echo "::error::kiro-cli not found and KIRO_CLI_INSTALL_CMD not set. \
             Add a self-hosted runner with kiro-cli, or set the KIRO_CLI_INSTALL_CMD repo variable."

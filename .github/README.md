@@ -37,12 +37,12 @@ Engineer runs "start_sdlc" (jira_id, title, description)
 
 | File | Purpose |
 |------|---------|
-| `workflows/sdlc-start.yml` | Manual entry point. Creates the branch, scaffolds docs, opens the PR. |
-| `workflows/sdlc-run.yml`   | Runs a stage on PR open / label; pushes results back to the PR. |
-| `agents/sdlc-spec.json`    | Least-privilege kiro-cli agent for the spec stage (writes only under `.docs/`). |
-| `scripts/lib.sh`           | Shared helpers (JIRA ID parsing, doc status read/update, phase detection). |
-| `scripts/scaffold-feature.sh` | Copies templates into `.docs/<JIRA_ID>/` and fills front matter. |
-| `scripts/run-stage.sh`     | Builds the stage prompt, invokes kiro-cli headless, commits the result. |
+| `.github/workflows/sdlc-start.yml` | Manual entry point. Creates the branch, scaffolds docs, opens the PR. |
+| `.github/workflows/sdlc-run.yml`   | Runs a stage on PR open / label; pushes results back to the PR. |
+| `.kiro/agents/sdlc-spec.json`      | Least-privilege kiro-cli agent for the spec stage (writes only under `.docs/`). Lives under `.kiro/agents/` because that is where kiro-cli discovers workspace agents. |
+| `.github/scripts/lib.sh`           | Shared helpers (JIRA ID parsing, doc status read/update, phase detection). |
+| `.github/scripts/scaffold-feature.sh` | Copies templates into `.docs/<JIRA_ID>/` and fills front matter. |
+| `.github/scripts/run-stage.sh`     | Builds the stage prompt, invokes kiro-cli headless, commits the result. |
 
 ## The state machine
 
@@ -75,7 +75,7 @@ PR status comment; no setup needed for it.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `KIRO_CLI_INSTALL_CMD` | only on hosted runners | Shell command that installs `kiro-cli` on the runner if it is not already present. Not needed on a self-hosted runner that ships kiro-cli. |
+| `KIRO_CLI_INSTALL_CMD` | only on hosted runners | Shell command that installs `kiro-cli` on the runner if it is not already present. Not needed on a self-hosted runner that ships kiro-cli. Use the fully non-interactive form: `curl -fsSL https://cli.kiro.dev/install \| bash -s -- --force`. The official installer accepts only `--force`, `--channel`, and `--help` — there is no `--no-confirm`; `--force` is what makes it non-interactive. It installs to `~/.local/bin`, which the workflow adds to `PATH`. |
 
 ### Labels
 
@@ -109,8 +109,9 @@ The stage job needs `kiro-cli` available and authenticated. Two options:
 
 ## Security notes
 
-- The spec agent (`agents/sdlc-spec.json`) is restricted to writing under `.docs/`
-  and explicitly denied `fs_write` to `src/**`, so a spec run cannot alter code.
+- The spec agent (`.kiro/agents/sdlc-spec.json`) is restricted to writing under
+  `.docs/` and explicitly denied `fs_write` to `src/**`, so a spec run cannot alter
+  code.
 - Workflows request only `contents: write` and `pull-requests: write`.
 - `kiro-cli` runs with `--no-interactive --trust-all-tools`; the agent's own tool
   allowlist and permission rules are what actually bound its capabilities, so keep
