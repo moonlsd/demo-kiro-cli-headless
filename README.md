@@ -39,34 +39,39 @@ setup, and how to author feature specs are all below.
 
 ## How the pipeline works
 
+```mermaid
+flowchart TD
+    start(["Engineer runs <b>start_sdlc</b><br/>jira_id, title, description"])
+
+    scaffold["<b>start_sdlc</b><br/>create branch feature/&lt;JIRA_ID&gt;<br/>scaffold .docs/&lt;JIRA_ID&gt;/ (status: DRAFT)<br/>open a PR"]
+
+    spec["<b>spec stage</b> · agent sdlc-spec<br/>draft business.md + requirements.md<br/>→ IN_REVIEW, push to PR"]
+    design["<b>design stage</b> · agent sdlc-design<br/>draft design.md from the spec<br/>→ IN_REVIEW, push to PR"]
+    implement["<b>implement stage</b> · agent sdlc-implement<br/>write code, run ./mvnw test (hard gate)<br/>on green → docs IMPLEMENTED, push code + docs"]
+
+    review1{{"human review<br/>add label <b>sdlc:design</b>"}}
+    review2{{"human review<br/>add label <b>sdlc:implement</b>"}}
+    review3{{"final review<br/>merge, or check out &amp; edit"}}
+
+    done(["PR merged"])
+
+    start --> scaffold
+    scaffold -- "PR opened triggers spec" --> spec
+    spec --> review1
+    review1 -- "label added" --> design
+    design --> review2
+    review2 -- "label added" --> implement
+    implement --> review3
+    review3 --> done
+
+    classDef gate fill:#fff3cd,stroke:#d39e00,color:#000;
+    classDef stage fill:#e7f1ff,stroke:#0b5ed7,color:#000;
+    class review1,review2,review3 gate;
+    class spec,design,implement stage;
 ```
-Engineer runs "start_sdlc" (jira_id, title, description)
-        │
-        ▼
-[start_sdlc]  create branch feature/<JIRA_ID>
-              scaffold .docs/<JIRA_ID>/ from templates (status: DRAFT)
-              open a PR  ─────────────────► triggers the spec stage
-        │
-        ▼
-[spec stage]      kiro-cli (agent: sdlc-spec) drafts business.md + requirements.md
-                  → IN_REVIEW, pushes to the PR
-        │
-        ▼  ◇ human review ◇   edit/approve, then add label  sdlc:design
-        │
-        ▼
-[design stage]    kiro-cli (agent: sdlc-design) drafts design.md from the spec
-                  → IN_REVIEW, pushes to the PR
-        │
-        ▼  ◇ human review ◇   edit/approve, then add label  sdlc:implement
-        │
-        ▼
-[implement stage] kiro-cli (agent: sdlc-implement) writes the code,
-                  then CI runs ./mvnw test as a HARD GATE.
-                  On green: docs → IMPLEMENTED, code + docs pushed to the PR
-        │
-        ▼  ◇ final review ◇   engineer reviews the full diff, merges,
-                              or checks out the branch and edits
-```
+
+Hexagon nodes are **human review gates** — the pipeline pauses there until a person
+adds the next label. Blue nodes are the automated `kiro-cli` stages.
 
 Two design choices make this work:
 
