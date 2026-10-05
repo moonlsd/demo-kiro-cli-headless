@@ -2,7 +2,7 @@
 id: KIRODEMO-003
 title: Order history API
 type: business
-status: DRAFT
+status: IN_REVIEW
 owner: moonlsd
 created: 2026-10-05
 updated: 2026-10-05
@@ -21,38 +21,86 @@ supersedes: null
 >
 > Let users view their past orders with pagination
 
-What problem are we solving, or what opportunity are we pursuing? Describe the
-current situation and why it is worth changing. Focus on the *why*.
+Customers who have placed orders currently have no self-service way to look back at
+what they bought. Without an order history, users must contact support to confirm a
+purchase, check what they ordered, or reference a past transaction — which is slow
+for the customer and costly for the business. We want to let an authenticated user
+retrieve their own past orders through the API, returned in manageable pages so the
+response stays fast and bounded even for customers with long purchase histories.
+Solving this reduces support load, increases customer trust and transparency, and
+provides a reusable building block for future account/self-service features.
 
 ## Goals
 
-- The outcomes this feature must achieve, stated as business/user outcomes (not
-  solutions).
+- Let an authenticated user retrieve a list of their own past orders through the
+  API.
+- Return results in bounded pages (with page metadata) so responses stay fast and
+  predictable regardless of how many orders a user has.
+- Present each order with the summary information a user needs to recognize it
+  (identifier, date, status, total).
+- Establish a reusable, standards-compliant read surface that later account
+  features can build on.
 
 ## Non-goals
 
-- What this feature explicitly does **not** try to do, to bound scope.
+- No creation, modification, or cancellation of orders (read-only history).
+- No access to other users' orders; a user sees only their own history.
+- No order line-item detail / full order drill-down view (may be a follow-up
+  feature).
+- No returns, refunds, invoices, receipts, or payment-detail exposure.
+- No UI/front-end work; this feature delivers the API only.
+- No changes to how orders are created or stored upstream.
 
 ## Stakeholders & users
 
-- **Users**: who interacts with this feature and what they are trying to do.
-- **Stakeholders**: who cares about the outcome (owners, dependent teams).
+- **Users**: authenticated end customers who want to review their own purchase
+  history; downstream UI/client developers who will consume the endpoint.
+- **Stakeholders**: product owner (self-service experience), the engineering team
+  (owns the API and data model), and customer support (benefits from reduced
+  "what did I order?" contacts).
 
 ## Success metrics
 
-How we will know this succeeded — measurable signals (adoption, latency, error
-rate, conversion, cost, etc.) and their target values.
+- Adoption: the endpoint is called by the client for the account/order-history view
+  once released, serving the majority of "view past orders" requests without a
+  support contact.
+- Performance: p95 response latency below the target in the requirements under
+  expected load (see NFR-1).
+- Correctness: zero incidents of a user receiving another user's orders.
+- Support impact: measurable reduction in support tickets of the form "confirm /
+  look up my past order" after rollout.
 
 ## Assumptions & constraints
 
-Business assumptions we are relying on, and constraints (budget, deadline,
-regulatory, dependencies) that shape the solution.
+- Orders already exist in the system and are associated with a specific user; this
+  feature reads that existing data and does not define the ordering domain from
+  scratch.
+- Callers are authenticated, and the authenticated identity is sufficient to scope
+  the query to that user's orders.
+- The feature must fit the layered architecture and comply with every standard in
+  [`../golden/`](../golden/) (architecture, API, data, security).
+- Order data is confidential and may include personal information; it must be
+  protected and never leaked across users or into logs.
 
 ## Risks & open questions
 
-- Known risks and how we might mitigate them.
-- Open questions that must be resolved before/while building.
+- **Authorization leakage** — returning another user's orders would be a serious
+  privacy breach. Mitigation: scope every query to the authenticated user at the
+  service boundary (default-deny), and verify with explicit tests.
+- **Unbounded responses** — a user with many orders could trigger large/slow
+  responses. Mitigation: mandatory pagination with an enforced maximum page size.
+- **Sensitive-data exposure** — order payloads could leak internal or payment
+  fields. Mitigation: return a minimal summary DTO; never expose entities or
+  payment details.
+- Open question: default and maximum page size, and the default sort order (assumed
+  most-recent-first) — to be confirmed and recorded in the requirements/design.
+- Open question: how the authenticated user identity is supplied (current auth
+  mechanism) — to be confirmed in design.
 
 ## References
 
-Links to tracker issue, related features, research, or prior decisions.
+- Tracker issue: KIRODEMO-003.
+- Golden standards: [`../golden/`](../golden/) (architecture, API, data, security,
+  lifecycle).
+- Related worked example: [`../KIRODEMO-001/`](../KIRODEMO-001/) (API spec
+  structure).
