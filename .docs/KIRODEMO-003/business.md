@@ -2,7 +2,7 @@
 id: KIRODEMO-003
 title: Order history API
 type: business
-status: APPROVED
+status: IMPLEMENTED
 owner: moonlsd
 created: 2026-10-05
 updated: 2026-10-05

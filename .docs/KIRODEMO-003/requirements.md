@@ -2,7 +2,7 @@
 id: KIRODEMO-003
 title: Order history API
 type: requirements
-status: APPROVED
+status: IMPLEMENTED
 owner: moonlsd
 created: 2026-10-05
 updated: 2026-10-05
@@ -154,8 +154,8 @@ names are filled in during the design/implementation phases.
 
 | Requirement | Design section | Verified by (test) |
 |-------------|----------------|--------------------|
-| FR-1        | design.md §…   | <TBD>              |
-| FR-2        | design.md §…   | <TBD>              |
-| FR-3        | design.md §…   | <TBD>              |
-| FR-4        | design.md §…   | <TBD>              |
-| FR-5        | design.md §…   | <TBD>              |
+| FR-1        | Architecture & components; API design (DTOs) | `OrderControllerTests.authenticatedRequestReturnsPageOfOrders`, `OrderControllerTests.userWithNoOrdersGetsEmptyPageNotFound`, `OrderHistoryServiceTests.mapsEntitiesToSummaryExposingOnlySummaryFields`, `OrderRepositoryTests.findByUserIdReturnsEmptyPageForUserWithNoOrders` |
+| FR-2        | API design (pagination); Key design decisions (size cap) | `OrderHistoryServiceTests.capsPageSizeAtConfiguredMaximum`, `OrderHistoryServiceTests.keepsRequestedSizeWhenBelowMaximum`, `OrderRepositoryTests.findByUserIdHonorsPageSize`, `OrderRepositoryTests.findByUserIdReturnsEmptyPageWhenPastTheEnd`, `OrderHistoryIntegrationTests.sizeIsCappedAtConfiguredMaximum` |
+| FR-3        | Security (default-deny scoping) | `OrderHistoryServiceTests.scopesQueryToSuppliedUserId`, `OrderRepositoryTests.findByUserIdReturnsOnlyThatUsersOrders`, `OrderControllerTests.unauthenticatedRequestReturns401WithProblemDetail`, `OrderHistoryIntegrationTests.userSeesOnlyTheirOwnOrdersMostRecentFirst`, `OrderHistoryIntegrationTests.anotherUserSeesOnlyTheirOrder`, `OrderHistoryIntegrationTests.unauthenticatedRequestIsRejected` |
+| FR-4        | Error handling | `OrderControllerTests.negativePageReturns400WithFieldError`, `OrderControllerTests.nonPositiveSizeReturns400WithFieldError`, `OrderControllerTests.nonNumericSizeReturns400` |
+| FR-5        | Key design decisions (fixed sort) | `OrderHistoryServiceTests.appliesMostRecentFirstSort`, `OrderRepositoryTests.findByUserIdHonorsMostRecentFirstSort`, `OrderHistoryIntegrationTests.userSeesOnlyTheirOwnOrdersMostRecentFirst` |

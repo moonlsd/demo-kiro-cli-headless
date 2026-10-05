@@ -2,7 +2,7 @@
 id: KIRODEMO-003
 title: Order history API
 type: design
-status: APPROVED
+status: IMPLEMENTED
 owner: moonlsd
 created: 2026-10-05
 updated: 2026-10-05
@@ -372,3 +372,24 @@ Two prerequisites are noted rather than deviations: an authentication mechanism 
 exist to supply the principal and `401` behavior, and a schema-migration tool
 (Flyway) must be adopted to ship the index — both are required by the golden
 standards themselves.
+
+## Implementation notes (prerequisites satisfied in this change)
+
+The two prerequisites above were satisfied concretely so the read feature runs end
+to end in this demo application. Neither changes the feature's logic:
+
+- **Authentication** — stateless HTTP Basic against an in-memory user store
+  (`SecurityConfig` + `AppUserDetails`). Each user carries the numeric `userId`
+  consumed by the service; the `/api/v1/orders` route requires authentication and an
+  unauthenticated caller gets the standard `401` problem-detail
+  (`ProblemDetailAuthenticationEntryPoint`). In a real deployment this store is
+  replaced by the organization's identity provider; the principal contract
+  (`AppUserDetails.getUserId()`) is unchanged.
+- **Schema / migrations** — Flyway owns the schema (`ddl-auto=none`). `V2` is this
+  feature's additive index `idx_orders_user_id_order_date`. Because the demo has no
+  upstream `orders` table, a `V1` baseline migration provisions the table so the
+  read path is runnable; in production the table is owned upstream and `V1` would
+  not be contributed by this feature.
+- **Central error handling** — a shared `@RestControllerAdvice`
+  (`GlobalExceptionHandler`) plus the `ApiError` record implement the standard
+  problem-detail shape for `400`/`401`/`500`, as the API/security standards require.
