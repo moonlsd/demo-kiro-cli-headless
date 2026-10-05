@@ -84,10 +84,11 @@ jobs:
         env:
           KIRO_CLI_INSTALL_CMD: ${{ vars.KIRO_CLI_INSTALL_CMD }}
         run: |
+          set -euo pipefail
+
           if command -v kiro-cli >/dev/null 2>&1; then
-            echo "kiro-cli already present"; exit 0
-          fi
-          if [[ -n "${KIRO_CLI_INSTALL_CMD}" ]]; then
+            echo "kiro-cli already present at: $(command -v kiro-cli)"
+          elif [[ -n "${KIRO_CLI_INSTALL_CMD}" ]]; then
             echo "Installing kiro-cli via repo variable KIRO_CLI_INSTALL_CMD"
             bash -c "${KIRO_CLI_INSTALL_CMD}"
           else
@@ -95,6 +96,27 @@ jobs:
             Add a self-hosted runner with kiro-cli, or set the KIRO_CLI_INSTALL_CMD repo variable."
             exit 1
           fi
+
+          # Installers commonly drop the binary in a user bin dir that is not on
+          # PATH for later steps. Add the likely locations to GITHUB_PATH so every
+          # subsequent step can find kiro-cli, then verify it actually resolves.
+          for dir in "$HOME/.local/bin" "$HOME/.kiro/bin" "$HOME/bin" "/usr/local/bin"; do
+            if [[ -x "$dir/kiro-cli" ]]; then
+              echo "$dir" >> "$GITHUB_PATH"
+              echo "Added $dir to PATH (found kiro-cli there)"
+            fi
+          done
+
+          # Resolve for this step too (GITHUB_PATH only affects later steps).
+          export PATH="$HOME/.local/bin:$HOME/.kiro/bin:$HOME/bin:/usr/local/bin:$PATH"
+          if ! command -v kiro-cli >/dev/null 2>&1; then
+            echo "::error::kiro-cli was installed but could not be located on PATH. \
+            Check where '${KIRO_CLI_INSTALL_CMD}' places the binary and add that dir above."
+            echo "Searched: $HOME/.local/bin $HOME/.kiro/bin $HOME/bin /usr/local/bin"
+            exit 1
+          fi
+          echo "kiro-cli resolved: $(command -v kiro-cli)"
+          kiro-cli --version 2>/dev/null || true
 
       - name: Authenticate kiro-cli
         env:
