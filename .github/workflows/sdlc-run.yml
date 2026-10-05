@@ -1,0 +1,130 @@
+name: sdlc_run
+
+# Runs an SDLC stage with kiro-cli (headless) and pushes the result to the PR branch.
+#
+# Vertical slice: implements the SPEC stage only.
+#   - PR opened on a feature/* branch whose docs are at DRAFT  -> run spec
+#   - (future) label sdlc:design    -> run design
+#   - (future) label sdlc:implement -> run implement
+#
+# The spec agent is restricted to writing under .docs/ (see .github/agents/sdlc-spec.json),
+# so this job cannot modify source code.
+
+on:
+  pull_request:
+    types: [opened, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  # One stage run per PR at a time.
+  group: sdlc-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    # Only act on SDLC feature branches.
+    if: startsWith(github.event.pull_request.head.ref, 'feature/')
+    outputs:
+      stage: ${{ steps.decide.outputs.stage }}
+      jira_id: ${{ steps.decide.outputs.jira_id }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Decide which stage to run
+        id: decide
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          ACTION: ${{ github.event.action }}
+          LABEL: ${{ github.event.label.name }}
+        run: |
+          chmod +x .github/scripts/*.sh
+          source .github/scripts/lib.sh
+          JIRA_ID="$(jira_id_from_branch "$HEAD_REF")"
+          echo "jira_id=$JIRA_ID" >> "$GITHUB_OUTPUT"
+
+          STAGE=""
+          if [[ "$ACTION" == "opened" ]]; then
+            # Fresh PR: run spec only if the docs are still at the spec phase.
+            [[ "$(feature_phase "$JIRA_ID")" == "SPEC" ]] && STAGE="spec"
+          elif [[ "$ACTION" == "labeled" ]]; then
+            case "$LABEL" in
+              sdlc:spec)      STAGE="spec" ;;
+              # sdlc:design / sdlc:implement wired up in later slices
+            esac
+          fi
+          echo "stage=$STAGE" >> "$GITHUB_OUTPUT"
+          echo "Resolved stage='$STAGE' for $JIRA_ID (action=$ACTION label=$LABEL)"
+
+  run-stage:
+    needs: route
+    if: needs.route.outputs.stage != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "sdlc-bot"
+          git config user.email "sdlc-bot@users.noreply.github.com"
+
+      - name: Install kiro-cli
+        env:
+          KIRO_CLI_INSTALL_CMD: ${{ vars.KIRO_CLI_INSTALL_CMD }}
+        run: |
+          if command -v kiro-cli >/dev/null 2>&1; then
+            echo "kiro-cli already present"; exit 0
+          fi
+          if [[ -n "${KIRO_CLI_INSTALL_CMD}" ]]; then
+            echo "Installing kiro-cli via repo variable KIRO_CLI_INSTALL_CMD"
+            bash -c "${KIRO_CLI_INSTALL_CMD}"
+          else
+            echo "::error::kiro-cli not found and KIRO_CLI_INSTALL_CMD not set. \
+            Add a self-hosted runner with kiro-cli, or set the KIRO_CLI_INSTALL_CMD repo variable."
+            exit 1
+          fi
+
+      - name: Authenticate kiro-cli
+        env:
+          # kiro-cli reads its credential from KIRO_API_KEY. Store it as the
+          # repository secret KIRO_API_KEY (Settings -> Secrets and variables -> Actions).
+          KIRO_API_KEY: ${{ secrets.KIRO_API_KEY }}
+        run: |
+          if [[ -z "${KIRO_API_KEY}" ]]; then
+            echo "::error::repository secret KIRO_API_KEY is not set"; exit 1
+          fi
+          echo "kiro-cli credential provided via KIRO_API_KEY"
+
+      - name: Run SDLC stage
+        env:
+          KIRO_API_KEY: ${{ secrets.KIRO_API_KEY }}
+        run: |
+          chmod +x .github/scripts/*.sh
+          .github/scripts/run-stage.sh \
+            "${{ needs.route.outputs.stage }}" \
+            "${{ needs.route.outputs.jira_id }}"
+
+      - name: Push result to PR branch
+        run: |
+          git push origin HEAD:"${{ github.event.pull_request.head.ref }}"
+
+      - name: Comment on PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          STAGE: ${{ needs.route.outputs.stage }}
+        run: |
+          gh pr comment "$PR" --body \
+          "Stage \`${STAGE}\` finished. Docs updated and pushed to this PR (status: IN_REVIEW). Review, then add the next \`sdlc:*\` label to continue."

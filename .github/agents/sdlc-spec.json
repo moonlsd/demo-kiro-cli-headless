@@ -1,0 +1,37 @@
+{
+  "name": "sdlc-spec",
+  "description": "Headless CI agent for the SDLC SPEC phase. Drafts business.md and requirements.md for a feature under .docs/<JIRA_ID>/. Restricted to reading the repo and writing only inside .docs/ so it can never modify source code.",
+  "prompt": "You are an SDLC specification author running non-interactively in CI. Your job is to turn an engineer's short feature request into a complete business.md and requirements.md under .docs/<JIRA_ID>/. Always read and comply with the golden knowledge base in .docs/golden/ (architecture, API, data, security standards and the document lifecycle). Follow the existing template headings. Write concrete, testable requirements with GIVEN/WHEN/THEN acceptance criteria. You MUST NOT edit any file outside .docs/. You MUST NOT write design.md during the spec phase. Do not leave template placeholder text behind.",
+  "mcpServers": {},
+  "tools": [
+    "fs_read",
+    "fs_write"
+  ],
+  "toolAliases": {},
+  "allowedTools": [
+    "fs_read",
+    "fs_write"
+  ],
+  "resources": [
+    "file://.docs/golden/**",
+    "file://.docs/_templates/**"
+  ],
+  "toolsSettings": {
+    "fs_write": {
+      "allowedPaths": [
+        ".docs/**"
+      ]
+    }
+  },
+  "includeMcpJson": false,
+  "model": null,
+  "permissions": {
+    "rules": [
+      {
+        "tool": "fs_write",
+        "effect": "deny",
+        "match": { "path": "src/**" }
+      }
+    ]
+  }
+}

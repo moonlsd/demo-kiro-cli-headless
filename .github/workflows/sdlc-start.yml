@@ -1,0 +1,106 @@
+name: start_sdlc
+
+# Engineer-triggered entry point for the SDLC workflow.
+# Creates a feature branch, scaffolds the spec docs from templates, and opens a PR.
+# Opening the PR triggers the spec stage (see sdlc-run.yml).
+
+on:
+  workflow_dispatch:
+    inputs:
+      jira_id:
+        description: "JIRA issue ID (e.g. KIRODEMO-002)"
+        required: true
+        type: string
+      title:
+        description: "Short feature title"
+        required: true
+        type: string
+      description:
+        description: "Requirement description (the engineer's original intent)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate inputs
+        run: |
+          echo "${{ inputs.jira_id }}" | grep -Eq '^[A-Z][A-Z0-9]+-[0-9]+$' \
+            || { echo "::error::jira_id must look like PROJECT-123"; exit 1; }
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "sdlc-bot"
+          git config user.email "sdlc-bot@users.noreply.github.com"
+
+      - name: Create feature branch
+        id: branch
+        env:
+          JIRA_ID: ${{ inputs.jira_id }}
+        run: |
+          BRANCH="feature/${JIRA_ID}"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "::error::branch $BRANCH already exists"; exit 1
+          fi
+          git checkout -b "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Scaffold feature docs
+        env:
+          SDLC_OWNER: ${{ github.actor }}
+        run: |
+          chmod +x .github/scripts/*.sh
+          .github/scripts/scaffold-feature.sh \
+            "${{ inputs.jira_id }}" \
+            "${{ inputs.title }}" \
+            "${{ inputs.description }}"
+
+      - name: Commit and push
+        env:
+          JIRA_ID: ${{ inputs.jira_id }}
+        run: |
+          git add ".docs/${JIRA_ID}"
+          git commit -m "${JIRA_ID}: scaffold spec docs (DRAFT) [automated]"
+          git push -u origin "${{ steps.branch.outputs.branch }}"
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JIRA_ID: ${{ inputs.jira_id }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          TITLE: ${{ inputs.title }}
+          DESCRIPTION: ${{ inputs.description }}
+        run: |
+          BODY=$(cat <<EOF
+          ## ${JIRA_ID}: ${TITLE}
+
+          Automated SDLC feature. Original request:
+
+          > ${DESCRIPTION}
+
+          ### SDLC progress
+          - [x] **Start** — docs scaffolded (DRAFT)
+          - [ ] **Spec** — business + requirements (auto-runs on PR open)
+          - [ ] **Design** — add label \`sdlc:design\` when spec is approved
+          - [ ] **Implement** — add label \`sdlc:implement\` when design is approved
+
+          ### How to advance
+          Review the latest changes, then add the next \`sdlc:*\` label to trigger the
+          next stage. Or check out \`${BRANCH}\` and edit manually, then push.
+          EOF
+          )
+          gh pr create \
+            --base main \
+            --head "${BRANCH}" \
+            --title "${JIRA_ID}: ${TITLE}" \
+            --body "${BODY}"
