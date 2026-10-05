@@ -73,7 +73,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # PAT so the stage's push to the PR branch is attributed to a real user
+          # and can trigger follow-on events; GITHUB_TOKEN pushes do not.
+          token: ${{ secrets.SDLC_PAT }}
 
       - name: Configure git identity
         run: |

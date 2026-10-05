@@ -66,8 +66,10 @@ Set these in **Settings → Secrets and variables → Actions** before running:
 | Secret | Required | Purpose |
 |--------|----------|---------|
 | `KIRO_API_KEY` | yes | Credential kiro-cli uses to authenticate on the runner. The workflow reads it from this repository secret and exposes it as the `KIRO_API_KEY` env var during the stage run. |
+| `SDLC_PAT` | yes | A Personal Access Token (or GitHub App token) used for checkout, push, and PR creation. Required because the default `GITHUB_TOKEN` (a) is not permitted to create pull requests, and (b) its pushes/PRs do not trigger other workflows — so the spec stage would never fire. Needs `contents: write` and `pull-requests: write` scope on this repo. |
 
-`GITHUB_TOKEN` is provided automatically by Actions; no setup needed.
+`GITHUB_TOKEN` is provided automatically by Actions and is used only for posting the
+PR status comment; no setup needed for it.
 
 ### Variables
 
