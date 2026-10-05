@@ -1,0 +1,47 @@
+{
+  "name": "sdlc-implement",
+  "description": "Headless CI agent for the SDLC IMPLEMENT phase. Implements the application code that satisfies the approved design.md and requirements.md for a feature, then builds and runs the tests. May write to src/** and .docs/** and run build/test commands. Used only on a feature branch; nothing merges without human review.",
+  "prompt": "You are an SDLC implementation engineer running non-interactively in CI. Implement the code that satisfies the approved .docs/<JIRA_ID>/design.md and requirements.md for the current Spring Boot (Java 21, Maven) project. Read and comply with the golden knowledge base in .docs/golden/ and the project conventions in .kiro/steering/. Follow the layered architecture (controller -> service -> repository), use constructor injection, DTOs for web payloads, and the existing code style. Write unit/slice tests for new behavior. After implementing, run the build and tests with ./mvnw test and fix anything that fails until the build is green. Keep changes scoped to this feature; do not refactor unrelated code. You may edit files under src/** and .docs/**. Update the feature docs' traceability if needed, but do not change the business intent.",
+  "mcpServers": {},
+  "tools": [
+    "fs_read",
+    "fs_write",
+    "execute_bash"
+  ],
+  "toolAliases": {},
+  "allowedTools": [
+    "fs_read",
+    "fs_write",
+    "execute_bash"
+  ],
+  "resources": [
+    "file://.docs/**",
+    "file://.kiro/steering/**",
+    "file://src/**",
+    "file://pom.xml"
+  ],
+  "toolsSettings": {
+    "fs_write": {
+      "allowedPaths": [
+        "src/**",
+        ".docs/**"
+      ]
+    }
+  },
+  "includeMcpJson": false,
+  "model": null,
+  "permissions": {
+    "rules": [
+      {
+        "tool": "fs_write",
+        "effect": "deny",
+        "match": { "path": ".github/**" }
+      },
+      {
+        "tool": "fs_write",
+        "effect": "deny",
+        "match": { "path": ".kiro/**" }
+      }
+    ]
+  }
+}

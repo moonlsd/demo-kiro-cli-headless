@@ -5,9 +5,8 @@ This directory holds a CI/CD pipeline that drives a documentation-first SDLC wit
 manual trigger; the pipeline scaffolds specs, opens a PR, and runs AI stages on
 that PR, with a human review gate between each stage.
 
-> **Status: vertical slice.** The **start** and **spec** stages are implemented and
-> runnable. **design** and **implement** are stubbed in the router and documented
-> below as the next increments.
+> **Status: all stages implemented.** start, spec, design, and implement are
+> runnable. The implement stage builds the project and gates on `./mvnw test`.
 
 ## Flow
 
@@ -26,11 +25,18 @@ Engineer runs "start_sdlc" (jira_id, title, description)
         ▼  ◇ MANUAL REVIEW ◇  edit or approve, then add label `sdlc:design`
         │
         ▼
-[sdlc_run: design]    (next increment) kiro-cli writes design.md
-        ▼  ◇ MANUAL REVIEW ◇  add label `sdlc:implement`
+[sdlc_run: design]  kiro-cli writes design.md (reads the approved spec),
+                    sets it to IN_REVIEW, pushes to the PR
+        │
+        ▼  ◇ MANUAL REVIEW ◇  edit or approve, then add label `sdlc:implement`
+        │
         ▼
-[sdlc_run: implement] (next increment) kiro-cli writes code + runs ./mvnw test
-        ▼  ◇ FINAL REVIEW ◇  engineer merges, or checks out & edits
+[sdlc_run: implement]  kiro-cli writes code satisfying the docs, then the stage
+                       runs ./mvnw test (hard gate). On green, docs -> IMPLEMENTED
+                       and the commit (src + docs) is pushed to the PR
+        │
+        ▼  ◇ FINAL REVIEW ◇  engineer reviews the full diff, merges, or checks
+                             out the branch and edits
 ```
 
 ## Files
@@ -40,6 +46,8 @@ Engineer runs "start_sdlc" (jira_id, title, description)
 | `.github/workflows/sdlc-start.yml` | Manual entry point. Creates the branch, scaffolds docs, opens the PR. |
 | `.github/workflows/sdlc-run.yml`   | Runs a stage on PR open / label; pushes results back to the PR. |
 | `.kiro/agents/sdlc-spec.json`      | Least-privilege kiro-cli agent for the spec stage (writes only under `.docs/`). Lives under `.kiro/agents/` because that is where kiro-cli discovers workspace agents. |
+| `.kiro/agents/sdlc-design.json`    | kiro-cli agent for the design stage. Same `.docs/`-only restriction; writes `design.md`. |
+| `.kiro/agents/sdlc-implement.json` | kiro-cli agent for the implement stage. Broader: writes `src/**` and `.docs/**` and may run build/test commands; denied writes to `.github/` and `.kiro/`. |
 | `.github/scripts/lib.sh`           | Shared helpers (JIRA ID parsing, doc status read/update, phase detection). |
 | `.github/scripts/scaffold-feature.sh` | Copies templates into `.docs/<JIRA_ID>/` and fills front matter. |
 | `.github/scripts/run-stage.sh`     | Builds the stage prompt, invokes kiro-cli headless, commits the result. |
@@ -82,8 +90,8 @@ PR status comment; no setup needed for it.
 Create these PR labels (used to advance phases):
 
 - `sdlc:spec` — re-run the spec stage (spec also auto-runs on PR open)
-- `sdlc:design` — advance to design *(next increment)*
-- `sdlc:implement` — advance to implement *(next increment)*
+- `sdlc:design` — advance to design
+- `sdlc:implement` — advance to implement (builds the project and runs `./mvnw test`)
 
 ## Running it
 
@@ -107,13 +115,26 @@ The stage job needs `kiro-cli` available and authenticated. Two options:
 - **GitHub-hosted runner** plus a `KIRO_CLI_INSTALL_CMD` variable that installs the
   CLI at job start.
 
+## Runner requirements (implement stage)
+
+The implement stage builds the project, so its job sets up **JDK 21** (Temurin,
+with Maven caching) via `actions/setup-java`. This step is conditional and only
+runs for the implement stage. The spec and design stages need no JDK.
+
 ## Security notes
 
-- The spec agent (`.kiro/agents/sdlc-spec.json`) is restricted to writing under
-  `.docs/` and explicitly denied `fs_write` to `src/**`, so a spec run cannot alter
+- The spec and design agents (`sdlc-spec`, `sdlc-design`) are restricted to writing
+  under `.docs/` and explicitly denied `fs_write` to `src/**`, so they cannot alter
   code.
+- The implement agent (`sdlc-implement`) is intentionally broader: it writes
+  `src/**` and `.docs/**` and may run build/test commands. It is denied writes to
+  `.github/` and `.kiro/` so a run cannot rewrite the CI pipeline or its own agent
+  definitions. For this demo the elevated scope is accepted because work lands only
+  on a feature branch and nothing merges without human review.
+- The implement stage enforces `./mvnw test` in the workflow (not just in the agent
+  prompt): the stage fails and the docs are not advanced to `IMPLEMENTED` unless the
+  build is green.
 - Workflows request only `contents: write` and `pull-requests: write`.
 - `kiro-cli` runs with `--no-interactive --trust-all-tools`; the agent's own tool
   allowlist and permission rules are what actually bound its capabilities, so keep
-  those tight. The implement stage (next increment) will use a separate agent that
-  additionally permits `src/**` writes and running `./mvnw`.
+  those tight.

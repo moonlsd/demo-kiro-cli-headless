@@ -57,7 +57,8 @@ jobs:
           elif [[ "$ACTION" == "labeled" ]]; then
             case "$LABEL" in
               sdlc:spec)      STAGE="spec" ;;
-              # sdlc:design / sdlc:implement wired up in later slices
+              sdlc:design)    STAGE="design" ;;
+              sdlc:implement) STAGE="implement" ;;
             esac
           fi
           echo "stage=$STAGE" >> "$GITHUB_OUTPUT"
@@ -81,6 +82,16 @@ jobs:
         run: |
           git config user.name  "sdlc-bot"
           git config user.email "sdlc-bot@users.noreply.github.com"
+
+      # Only the implement stage builds the project, so it needs a JDK. The
+      # project targets Java 21 (see pom.xml).
+      - name: Set up JDK 21
+        if: needs.route.outputs.stage == 'implement'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
 
       - name: Install kiro-cli
         env:
@@ -155,5 +166,14 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           STAGE: ${{ needs.route.outputs.stage }}
         run: |
-          gh pr comment "$PR" --body \
-          "Stage \`${STAGE}\` finished. Docs updated and pushed to this PR (status: IN_REVIEW). Review, then add the next \`sdlc:*\` label to continue."
+          case "$STAGE" in
+            spec)
+              NEXT="Review the drafted business + requirements (status: IN_REVIEW), then add the \`sdlc:design\` label to continue." ;;
+            design)
+              NEXT="Review the drafted design (status: IN_REVIEW), then add the \`sdlc:implement\` label to continue." ;;
+            implement)
+              NEXT="Code implemented and \`./mvnw test\` passed; docs set to IMPLEMENTED. Review the full diff, then merge the PR (or check out the branch to adjust)." ;;
+            *)
+              NEXT="Stage finished." ;;
+          esac
+          gh pr comment "$PR" --body "Stage \`${STAGE}\` finished and pushed to this PR. ${NEXT}"
